@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>单词训练营 · 五词四轮</title>
+<style>
+  :root{
+    --board:#17332C;        /* 黑板深绿 */
+    --board-2:#1E4038;      /* 稍亮的板面 */
+    --card:#24473E;         /* 卡片 */
+    --chalk:#F2EFE4;        /* 粉笔白 */
+    --chalk-dim:#B9C4B8;    /* 次级文字 */
+    --amber:#E8C468;        /* 粉笔黄(计时/强调) */
+    --ok:#8CD0A9;           /* 正确 */
+    --bad:#E58B7B;          /* 错误 */
+    --line:rgba(242,239,228,.14);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 600px at 70% -10%, rgba(232,196,104,.06), transparent 60%),
+      var(--board);
+    color:var(--chalk);
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    line-height:1.5;
+  }
+  .wrap{max-width:680px;margin:0 auto;padding:20px 16px 60px}
+  header.top{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:18px}
+  .brand{font-size:20px;letter-spacing:2px;font-weight:700}
+  .brand small{display:block;font-size:11px;color:var(--chalk-dim);letter-spacing:4px;font-weight:400;margin-top:2px}
+  .navbtn{background:none;border:1px solid var(--line);color:var(--chalk-dim);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
+  .navbtn:hover{color:var(--chalk);border-color:var(--chalk-dim)}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+  .card h3{font-size:14px;letter-spacing:2px;color:var(--amber);margin-bottom:10px;font-weight:600}
+  .muted{color:var(--chalk-dim);font-size:13px}
+
+  .btn{display:inline-block;border:none;border-radius:10px;padding:12px 20px;font-size:15px;cursor:pointer;font-family:inherit}
+  .btn-main{background:var(--amber);color:#2B2410;font-weight:700}
+  .btn-main:disabled{opacity:.4;cursor:not-allowed}
+  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--chalk)}
+  .btn-ghost:hover{border-color:var(--amber);color:var(--amber)}
+  .btn-sm{padding:7px 12px;font-size:13px;border-radius:8px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+  /* ===== 训练界面 ===== */
+  .stage{min-height:60vh;display:flex;flex-direction:column;align-items:center;text-align:center}
+  .round-tag{font-size:12px;letter-spacing:3px;color:var(--chalk-dim);margin-bottom:4px}
+  .round-name{font-size:17px;color:var(--amber);letter-spacing:2px;margin-bottom:18px}
+  .progress-dots{display:flex;gap:8px;margin-bottom:22px}
+  .dot{width:10px;height:10px;border-radius:50%;border:1px solid var(--chalk-dim)}
+  .dot.on{background:var(--amber);border-color:var(--amber)}
+  .dot.done-ok{background:var(--ok);border-color:var(--ok)}
+  .dot.done-bad{background:var(--bad);border-color:var(--bad)}
+
+  .ring-wrap{position:relative;width:230px;height:230px;margin-bottom:18px}
+  .ring-wrap svg{transform:rotate(-90deg)}
+  .ring-bg{fill:none;stroke:rgba(242,239,228,.12);stroke-width:6}
+  .ring-fg{fill:none;stroke:var(--amber);stroke-width:6;stroke-linecap:round;transition:stroke .3s}
+  .ring-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+  .word-en{font-family:ui-monospace,"SF Mono",Consolas,monospace;font-size:34px;font-weight:700;letter-spacing:1px;word-break:break-all}
+  .ph-word>span{padding:0 1px}
+  .ph-v{color:var(--amber);border-bottom:3px solid var(--amber)}
+  .ph-c{color:var(--ok);border-bottom:3px solid var(--ok)}
+  .ph-s{color:var(--chalk-dim);opacity:.5}
+  .ph-legend{display:flex;gap:14px;justify-content:center;font-size:12px;color:var(--chalk-dim);margin-bottom:10px}
+  .ph-legend i{font-style:normal;padding:0 4px;border-bottom:3px solid}
+  .ph-legend .lv{color:var(--amber);border-color:var(--amber)}
+  .ph-legend .lc{color:var(--ok);border-color:var(--ok)}
+  .ph-legend .ls{color:var(--chalk-dim);opacity:.6;border-color:transparent}
+  .word-zh{font-size:18px;color:var(--chalk-dim);margin-top:6px}
+  .timeleft{font-size:12px;color:var(--chalk-dim);margin-top:8px;font-variant-numeric:tabular-nums}
+  .hidden-word{font-size:34px;letter-spacing:6px;color:var(--chalk-dim)}
+
+  input.spell{
+    width:min(420px,90%);background:var(--board-2);border:1px solid var(--line);border-radius:10px;
+    color:var(--chalk);font-family:ui-monospace,Consolas,monospace;font-size:24px;text-align:center;
+    padding:12px;letter-spacing:2px;outline:none;margin-bottom:14px
+  }
+  input.spell:focus{border-color:var(--amber)}
+  input.spell.ok{border-color:var(--ok);color:var(--ok)}
+  input.spell.bad{border-color:var(--bad);color:var(--bad)}
+  .feedback{min-height:28px;font-size:16px;margin-bottom:10px}
+  .feedback .ok{color:var(--ok)} .feedback .bad{color:var(--bad)}
+  .correct-reveal{font-family:ui-monospace,Consolas,monospace;font-size:20px;color:var(--amber);letter-spacing:2px}
+
+  /* ===== 列表/表格 ===== */
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left}
+  th{color:var(--chalk-dim);font-weight:400;font-size:12px;letter-spacing:1px}
+  td .en{font-family:ui-monospace,Consolas,monospace}
+  .tag{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:6px;padding:1px 7px;color:var(--chalk-dim)}
+  .tag.due{border-color:var(--amber);color:var(--amber)}
+  .tag.okc{border-color:var(--ok);color:var(--ok)}
+  .del{background:none;border:none;color:var(--chalk-dim);cursor:pointer;font-size:14px}
+  .del:hover{color:var(--bad)}
+  textarea{width:100%;min-height:110px;background:var(--board-2);border:1px solid var(--line);border-radius:10px;color:var(--chalk);padding:10px;font-size:14px;font-family:inherit;outline:none}
+  textarea:focus{border-color:var(--amber)}
+
+  /* 纸面批改 */
+  .paper-list{counter-reset:pw;text-align:left;margin:10px 0 18px}
+  .paper-item{display:flex;align-items:center;gap:12px;padding:12px 8px;border-bottom:1px dashed var(--line)}
+  .paper-item .num{color:var(--chalk-dim);width:22px}
+  .paper-item .zh{flex:1;font-size:17px}
+  .paper-item .en{font-family:ui-monospace,Consolas,monospace;font-size:17px;color:var(--amber);letter-spacing:1px}
+  .markbtns{display:flex;gap:6px}
+  .mk{width:38px;height:38px;border-radius:8px;border:1px solid var(--line);background:none;color:var(--chalk-dim);font-size:17px;cursor:pointer}
+  .mk.sel-ok{background:var(--ok);color:#123;border-color:var(--ok)}
+  .mk.sel-bad{background:var(--bad);color:#311;border-color:var(--bad)}
+
+  .score-big{font-size:52px;font-weight:700;color:var(--amber);font-variant-numeric:tabular-nums}
+  .summary-word{display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--line);font-size:15px}
+  .summary-word .en{font-family:ui-monospace,Consolas,monospace}
+  .rate-row{display:flex;gap:10px;justify-content:center;margin-top:6px}
+  .footer-tip{margin-top:26px;font-size:12px;color:var(--chalk-dim);text-align:center}
+  @media (max-width:480px){ .ring-wrap{width:200px;height:200px} .word-en{font-size:28px} }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script>
+/* ================= 数据层 ================= */
+const STORE_KEY = 'vocab-camp-v2';
+const INTERVALS = [1, 2, 4, 7, 15];            // 艾宾浩斯复习间隔(天)
+const DEFAULT_WORDS = [
+  // ===== Unit 1 =====
+  ["north","北方;北方的","U1"],
+  ["northeast","东北方;东北方的","U1"],
+  ["east","东方;东方的","U1"],
+  ["southeast","东南方;东南方的","U1"],
+  ["south","南方;南方的","U1"],
+  ["southwest","西南方;西南方的","U1"],
+  ["west","西方;西方的","U1"],
+  ["northwest","西北方;西北方的","U1"],
+  ["climb","攀登;爬","U1"],
+  ["mountain","高山","U1"],
+  ["sunrise","日出","U1"],
+  ["ride","骑","U1"],
+  ["city","城市","U1"],
+  ["wonderful","精彩的;绝妙的;令人惊叹的","U1"],
+  ["hometown","家乡;故乡","U1"],
+  ["beach","海滩;沙滩","U1"],
+  ["top","顶端;顶部","U1"],
+  ["last","最近的;上一个","U1"],
+  ["young","年轻的;相对年轻的","U1"],
+  ["look for","寻找","U1"],
+  // ===== Unit 2 =====
+  ["excited","激动的;兴奋的","U2"],
+  ["angry","愤怒的;生气的","U2"],
+  ["win","获胜;赢","U2"],
+  ["get","获得;得到;去取(或带来)","U2"],
+  ["break","弄坏;损坏","U2"],
+  ["internet","(国际)互联网;因特网","U2"],
+  ["why","(用于问句)为什么;为何","U2"],
+  ["volleyball","排球","U2"],
+  ["ago","以前","U2"],
+  ["begin","开始","U2"],
+  ["cry","哭;哭泣","U2"],
+  ["call","打电话;通话","U2"],
+  ["not at all","(not...at all)一点也不;完全不","U2"],
+  ["What's up","怎么回事?","U2"],
+  // ===== Unit 3 =====
+  ["first","第一;首先","U3"],
+  ["seed","种子","U3"],
+  ["soil","土壤","U3"],
+  ["pot","陶盆;陶罐","U3"],
+  ["second","第二;其次","U3"],
+  ["put","放","U3"],
+  ["third","第三","U3"],
+  ["fourth","第四","U3"],
+  ["sun","太阳","U3"],
+  ["harvest","收割;收获","U3"],
+  ["fifth","第五","U3"],
+  ["sixth","第六","U3"],
+  ["seventh","第七","U3"],
+  ["eighth","第八","U3"],
+  ["ninth","第九","U3"],
+  ["tenth","第十","U3"],
+  ["tiny","极小的","U3"],
+  ["fourteenth","第十四","U3"],
+  ["leaf","叶子(复数 leaves)","U3"],
+  ["sixteenth","第十六","U3"],
+  ["grow","种植;成长","U3"],
+  ["thirtieth","第三十","U3"],
+  ["pull","拔;拉","U3"],
+  ["radish","小萝卜","U3"],
+  ["easy","容易的","U3"],
+  ["wait","等;等待","U3"],
+  ["front","前面的;前部的","U3"],
+  // ===== Unit 4 =====
+  ["spring","春天;春季","U4"],
+  ["summer","夏天;夏季","U4"],
+  ["autumn","秋天;秋季","U4"],
+  ["winter","冬天;冬季","U4"],
+  ["outing","(集体)出外游玩;远足","U4"],
+  ["sky","天空","U4"],
+  ["pick","采摘","U4"],
+  ["ice skating","滑冰","U4"],
+  ["season","季;季节","U4"],
+  ["wake","醒;醒来","U4"],
+  ["moon","月亮","U4"],
+  ["year","年;一年时间","U4"],
+  ["rain","雨;下雨","U4"],
+  ["star","星;恒星","U4"],
+  ["snow","雪;下雪","U4"],
+  // ===== Unit 5 =====
+  ["January","一月","U5"],
+  ["February","二月","U5"],
+  ["March","三月","U5"],
+  ["April","四月","U5"],
+  ["May","五月","U5"],
+  ["June","六月","U5"],
+  ["July","七月","U5"],
+  ["August","八月","U5"],
+  ["September","九月","U5"],
+  ["October","十月","U5"],
+  ["November","十一月","U5"],
+  ["December","十二月","U5"],
+  ["festival","节日","U5"],
+  ["month","月;月份","U5"],
+  ["candle","蜡烛","U5"],
+  ["get together","聚会","U5"],
+  ["mooncake","月饼","U5"],
+  ["wish","希望;想要;祝愿","U5"],
+  ["sunshine","阳光","U5"],
+  ["catch","逮住;捕捉;捕获","U5"],
+  // ===== Unit 6 =====
+  ["astronaut","宇航员","U6"],
+  ["engineer","工程师","U6"],
+  ["poet","诗人","U6"],
+  ["scientist","科学家","U6"],
+  ["space","外层空间;太空","U6"],
+  ["design","设计","U6"],
+  ["railway","铁路;铁道","U6"],
+  ["develop","研发;培育","U6"],
+  ["hybrid","杂交的","U6"],
+  ["hero","英雄;崇拜的对象","U6"],
+  ["fan","迷;狂热爱好者","U6"],
+  ["him","(he 的宾格)他","U6"],
+  // ===== 人教 PEP 三至五年级总表(按主题分组,便于联想记忆) =====
+  // —— 数字 ——
+  ["one","一","数字"],
+  ["two","二","数字"],
+  ["three","三","数字"],
+  ["four","四","数字"],
+  ["five","五","数字"],
+  ["six","六","数字"],
+  ["seven","七","数字"],
+  ["eight","八","数字"],
+  ["nine","九","数字"],
+  ["ten","十","数字"],
+  ["eleven","十一","数字"],
+  ["twelve","十二","数字"],
+  ["thirteen","十三","数字"],
+  ["fourteen","十四","数字"],
+  ["fifteen","十五","数字"],
+  ["sixteen","十六","数字"],
+  ["seventeen","十七","数字"],
+  ["eighteen","十八","数字"],
+  ["nineteen","十九","数字"],
+  ["twenty","二十","数字"],
+  // —— 数量 ——
+  ["much","许多;大量","数量"],
+  ["some","一些","数量"],
+  ["little","少许;一点","数量"],
+  ["less","(与不可数名词连用)较少的,更少的","数量"],
+  ["enough","足够的;充足的;充分的","数量"],
+  ["both","两者","数量"],
+  ["twice","两次;两遍","数量"],
+  ["a lot of","大量;许多","数量"],
+  ["a box of","一盒,一箱(东西)","数量"],
+  ["pair","(相似两部分构成的)一条,一副","数量"],
+  // —— 颜色 ——
+  ["colour","颜色","颜色"],
+  ["colourful","五彩缤纷的","颜色"],
+  ["red","红色;红色的","颜色"],
+  ["yellow","黄色;黄色的","颜色"],
+  ["blue","蓝色;蓝色的","颜色"],
+  ["green","绿色;绿色的","颜色"],
+  ["black","黑色;黑色的","颜色"],
+  ["white","白色;白色的","颜色"],
+  ["brown","棕色;棕色的","颜色"],
+  ["pink","粉色;粉色的","颜色"],
+  ["purple","紫色;紫色的","颜色"],
+  ["orange","橙子;柑橘;橙红色的","颜色"],
+  // —— 身体 ——
+  ["eye","眼睛","身体"],
+  ["ear","耳朵","身体"],
+  ["nose","鼻;鼻子","身体"],
+  ["mouth","嘴","身体"],
+  ["face","脸;面孔","身体"],
+  ["hand","手","身体"],
+  ["arm","胳膊","身体"],
+  ["leg","腿","身体"],
+  ["foot","(人或动物的)脚,足","身体"],
+  ["body","身体","身体"],
+  ["hair","头发","身体"],
+  ["tooth","牙;齿","身体"],
+  ["tongue","舌;舌头","身体"],
+  ["tail","尾;尾巴","身体"],
+  ["smile","微笑;笑","身体"],
+  // —— 家人 ——
+  ["family","家;家庭","家人"],
+  ["father","父亲;爸爸","家人"],
+  ["mother","母亲;妈妈","家人"],
+  ["dad","(口语)爸爸;爹爹","家人"],
+  ["mum","(口语)妈妈","家人"],
+  ["brother","哥;弟","家人"],
+  ["sister","姐;妹","家人"],
+  ["baby","婴儿","家人"],
+  ["aunt","伯母;婶母;舅母;姑母;姨母","家人"],
+  ["uncle","伯父;叔父;舅父;姑父;姨父","家人"],
+  ["cousin","堂(表)兄弟;堂(表)姐妹","家人"],
+  ["grandfather","(外)祖父;爷爷;姥爷;外公","家人"],
+  ["grandmother","(外)祖母;奶奶;姥姥;外婆","家人"],
+  ["grandpa","爷爷;姥爷","家人"],
+  ["grandma","奶奶;姥姥","家人"],
+  ["parent","父亲;母亲","家人"],
+  ["grandparent","祖父;祖母;外祖父;外祖母","家人"],
+  ["child","儿童;小孩","家人"],
+  ["kid","小孩","家人"],
+  ["people","人;人们","家人"],
+  // —— 人物 ——
+  ["man","成年男子;男人","人物"],
+  ["woman","成年女子;妇女","人物"],
+  ["boy","男孩","人物"],
+  ["girl","女孩","人物"],
+  ["friend","朋友","人物"],
+  ["classmate","同班同学","人物"],
+  ["neighbour","邻居","人物"],
+  ["everyone","每人","人物"],
+  ["Mr","(用于男子的姓氏或姓名前)先生","人物"],
+  ["Mrs","(用于女子的姓氏或姓名前)太太,夫人","人物"],
+  ["Ms","(用于女子的姓氏或姓名前,不指明婚否)女士","人物"],
+  ["Miss","(学生对女教师的称呼)老师;女士","人物"],
+  ["sir","先生","人物"],
+  ["name","名字","人物"],
+  ["team","(游戏或运动的)队;(一起工作的)组,班","人物"],
+  // —— 代词 ——
+  ["he","他","代词"],
+  ["she","她","代词"],
+  ["me","我","代词"],
+  ["her","她;她的","代词"],
+  ["his","他的","代词"],
+  ["its","它的","代词"],
+  ["them","它们;他们;她们","代词"],
+  ["their","他们的;她们的;它们的","代词"],
+  ["mine","我的","代词"],
+  ["yours","您的(用于书信结尾的签名前)","代词"],
+  // —— 疑问指示 ——
+  ["these","这些","疑问指示"],
+  ["those","(指较远的人或事物)那些","疑问指示"],
+  ["there","(表示存在或发生);在那里","疑问指示"],
+  ["who","谁;什么人","疑问指示"],
+  ["whose","谁的","疑问指示"],
+  ["which","哪一个;哪一些","疑问指示"],
+  ["when","当……时;什么时候","疑问指示"],
+  ["where","在哪里;到哪里","疑问指示"],
+  ["if","如果;假若;倘若","疑问指示"],
+  ["or","或;或者;还是","疑问指示"],
+  // —— 动物 ——
+  ["cat","猫","动物"],
+  ["dog","狗","动物"],
+  ["bird","鸟","动物"],
+  ["fish","鱼;鱼肉","动物"],
+  ["duck","鸭","动物"],
+  ["monkey","猴子","动物"],
+  ["tiger","老虎","动物"],
+  ["lion","狮;狮子","动物"],
+  ["elephant","大象","动物"],
+  ["panda","大熊猫","动物"],
+  ["bear","熊","动物"],
+  ["rabbit","兔","动物"],
+  ["fox","狐狸","动物"],
+  ["giraffe","长颈鹿","动物"],
+  ["pig","猪","动物"],
+  ["cow","奶牛","动物"],
+  ["horse","马","动物"],
+  ["sheep","羊;绵羊","动物"],
+  ["chicken","鸡;鸡肉","动物"],
+  ["mouse","老鼠","动物"],
+  ["bee","蜜蜂","动物"],
+  ["kangaroo","袋鼠","动物"],
+  ["koala","考拉","动物"],
+  ["camel","骆驼","动物"],
+  ["turkey","火鸡","动物"],
+  ["red panda","小熊猫","动物"],
+  ["animal","动物","动物"],
+  ["pet","宠物","动物"],
+  ["zoo","动物园","动物"],
+  ["wild","野生的;自然生长的","动物"],
+  // —— 水果食物 ——
+  ["apple","苹果","水果食物"],
+  ["banana","香蕉","水果食物"],
+  ["grape","葡萄","水果食物"],
+  ["fruit","水果","水果食物"],
+  ["coconut","椰子","水果食物"],
+  ["bread","面包","水果食物"],
+  ["cake","蛋糕","水果食物"],
+  ["candy","糖果","水果食物"],
+  ["egg","(作食物用的)蛋;鸡蛋","水果食物"],
+  ["juice","果汁","水果食物"],
+  ["meat","肉","水果食物"],
+  ["beef","牛肉","水果食物"],
+  ["milk","(牛或羊等的)奶;挤奶","水果食物"],
+  ["rice","大米","水果食物"],
+  ["soup","汤","水果食物"],
+  ["noodle","(常用复数)面条","水果食物"],
+  ["vegetable","蔬菜","水果食物"],
+  ["tomato","西红柿","水果食物"],
+  ["potato","土豆","水果食物"],
+  ["carrot","胡萝卜","水果食物"],
+  ["dumpling","饺子;汤圆","水果食物"],
+  ["hamburger","汉堡包;汉堡牛肉饼","水果食物"],
+  ["salad","蔬菜沙拉","水果食物"],
+  ["seafood","海鲜","水果食物"],
+  ["ice cream","(一份)冰激凌","水果食物"],
+  // —— 吃喝 ——
+  ["food","菜肴;食物","吃喝"],
+  ["breakfast","早餐;早饭","吃喝"],
+  ["lunch","午餐","吃喝"],
+  ["dinner","(中午或晚上吃的)正餐","吃喝"],
+  ["tea","茶叶;茶;茶水","吃喝"],
+  ["eat","吃","吃喝"],
+  ["hungry","感到饿的","吃喝"],
+  ["yummy","很好吃的","吃喝"],
+  ["delicious","美味的;可口的","吃喝"],
+  ["taste","尝(味道)","吃喝"],
+  ["cook","烹饪;煮;厨师","吃喝"],
+  ["feed","给(人或动物)食物;饲养","吃喝"],
+  ["cut","切块","吃喝"],
+  ["green bean","青刀豆;四季豆","吃喝"],
+  ["hot pot","火锅","吃喝"],
+  // —— 餐具厨房 ——
+  ["bowl","碗","餐具厨房"],
+  ["plate","盘子","餐具厨房"],
+  ["cup","一杯(的量);杯子","餐具厨房"],
+  ["spoon","勺;匙;调羹","餐具厨房"],
+  ["fork","餐叉","餐具厨房"],
+  ["knife","刀","餐具厨房"],
+  ["chopstick","(常用复数)筷子","餐具厨房"],
+  ["kitchen","厨房","餐具厨房"],
+  ["clear the table","收拾餐桌","餐具厨房"],
+  ["set the table","摆放餐具","餐具厨房"],
+  // —— 衣物 ——
+  ["clothes","衣服;服装","衣物"],
+  ["shirt","衬衫","衣物"],
+  ["T-shirt","恤衫","衣物"],
+  ["dress","连衣裙","衣物"],
+  ["skirt","裙子","衣物"],
+  ["coat","大衣;外套","衣物"],
+  ["sweater","毛衣","衣物"],
+  ["jacket","夹克衫;短上衣","衣物"],
+  ["trousers","裤子","衣物"],
+  ["shorts","短裤","衣物"],
+  ["sock","短袜","衣物"],
+  ["shoe","鞋","衣物"],
+  ["hat","帽子","衣物"],
+  ["cap","帽子","衣物"],
+  ["glove","手套","衣物"],
+  // —— 穿戴购物 ——
+  ["sunglasses","太阳镜;墨镜","穿戴购物"],
+  ["wear","穿;戴","穿戴购物"],
+  ["try on","试穿","穿戴购物"],
+  ["size","尺码;号","穿戴购物"],
+  ["large","(服装、食物、日用品等)大型号的","穿戴购物"],
+  ["shop","商店","穿戴购物"],
+  ["supermarket","超市","穿戴购物"],
+  ["buy","购买","穿戴购物"],
+  ["pay","付费","穿戴购物"],
+  ["cheap","便宜的","穿戴购物"],
+  ["expensive","昂贵的;价格高的","穿戴购物"],
+  ["free","免费的;空闲的","穿戴购物"],
+  ["list","清单;目录","穿戴购物"],
+  ["borrow","借;借用","穿戴购物"],
+  ["return","归还;回去;返回","穿戴购物"],
+  // —— 学校学习 ——
+  ["school","学校","学校学习"],
+  ["classroom","教室","学校学习"],
+  ["class","课;课程;班;班级","学校学习"],
+  ["teacher","教师","学校学习"],
+  ["student","学生","学校学习"],
+  ["lesson","课;一节课","学校学习"],
+  ["subject","科目;学科","学校学习"],
+  ["maths","数学","学校学习"],
+  ["English","英语的;英语","学校学习"],
+  ["PE","体育(课)","学校学习"],
+  ["book","书;书籍","学校学习"],
+  ["workbook","练习册;作业本","学校学习"],
+  ["homework","家庭作业","学校学习"],
+  ["word","言语;单词;字","学校学习"],
+  ["learn","学;学习","学校学习"],
+  ["read","阅读","学校学习"],
+  ["write","书写;写字","学校学习"],
+  ["listen","听;倾听","学校学习"],
+  ["speak","说话;发言","学校学习"],
+  ["say","说;讲","学校学习"],
+  ["ask","问;询问","学校学习"],
+  ["answer","答复;回答","学校学习"],
+  ["know","知道;了解","学校学习"],
+  ["understand","懂;理解","学校学习"],
+  ["study","书房","学校学习"],
+  ["science","科学;自然科学","学校学习"],
+  // —— 文具书桌 ——
+  ["pen","钢笔","文具书桌"],
+  ["pencil","铅笔","文具书桌"],
+  ["eraser","橡皮","文具书桌"],
+  ["ruler","直尺","文具书桌"],
+  ["paper","纸","文具书桌"],
+  ["bag","包;袋","文具书桌"],
+  ["desk","书桌;办公桌","文具书桌"],
+  ["chair","椅子","文具书桌"],
+  ["blackboard","黑板","文具书桌"],
+  ["note","笔记;便条","文具书桌"],
+  // —— 校园生活 ——
+  ["library","图书馆","校园生活"],
+  ["playground","游乐场;操场","校园生活"],
+  ["toilet","厕所;卫生间","校园生活"],
+  ["in class","在课堂上","校园生活"],
+  ["go to school","上学","校园生活"],
+  ["follow","遵循;听从(忠告、指示等)","校园生活"],
+  ["rule","规则;规章","校园生活"],
+  ["quiet","文静的","校园生活"],
+  ["clever","聪明的;聪颖的","校园生活"],
+  ["hard-working","工作努力的;辛勤的","校园生活"],
+  // —— 家与房间 ——
+  ["home","家;住所","家与房间"],
+  ["bedroom","卧室","家与房间"],
+  ["bathroom","浴室;洗手间","家与房间"],
+  ["living room","客厅;起居室","家与房间"],
+  ["room","房间","家与房间"],
+  ["door","门","家与房间"],
+  ["window","窗","家与房间"],
+  ["wall","墙;壁","家与房间"],
+  ["floor","地板;地面","家与房间"],
+  ["light","灯;光","家与房间"],
+  // —— 家务起居 ——
+  ["clean","打扫;干净的","家务起居"],
+  ["wash","洗","家务起居"],
+  ["sweep","扫","家务起居"],
+  ["chore","家庭杂务","家务起居"],
+  ["make the bed","铺床","家务起居"],
+  ["turn off","关掉","家务起居"],
+  ["tidy","整洁的;整齐的;使整洁;整理","家务起居"],
+  ["brush","(用刷子)刷净、刷亮、刷平顺","家务起居"],
+  ["get up","起床","家务起居"],
+  ["go to bed","上床睡觉","家务起居"],
+  ["go home","回家","家务起居"],
+  ["sleep","睡觉","家务起居"],
+  ["rest","休息;放松","家务起居"],
+  ["waste","浪费;废品","家务起居"],
+  ["recycle","回收利用;再利用","家务起居"],
+  // —— 数码家电 ——
+  ["TV","电视","数码家电"],
+  ["computer","计算机;电脑","数码家电"],
+  ["phone","电话;电话机","数码家电"],
+  ["app","应用软件","数码家电"],
+  ["blog","博客","数码家电"],
+  ["password","密码","数码家电"],
+  ["flash","闪光灯","数码家电"],
+  ["photo","照片","数码家电"],
+  ["magazine","杂志;期刊","数码家电"],
+  ["newspaper","报纸","数码家电"],
+  ["information","信息;消息","数码家电"],
+  // —— 日常物品 ——
+  ["clock","时钟","日常物品"],
+  ["shelf","架子","日常物品"],
+  ["box","盒子","日常物品"],
+  ["umbrella","伞;雨伞","日常物品"],
+  ["doll","玩偶;玩具娃娃","日常物品"],
+  ["kite","风筝","日常物品"],
+  ["ball","球","日常物品"],
+  ["gift","礼物","日常物品"],
+  ["card","贺卡;慰问卡;卡片","日常物品"],
+  ["picture","图画;绘画","日常物品"],
+  ["line","队伍;行列;线条","日常物品"],
+  ["map","地图","日常物品"],
+  ["raincoat","雨衣","日常物品"],
+  ["robot","机器人","日常物品"],
+  ["rope","绳;粗绳","日常物品"],
+  ["piggy bank","猪形储钱罐","日常物品"],
+  // —— 动作一 ——
+  ["walk","散步;行走","动作一"],
+  ["run","跑;奔跑","动作一"],
+  ["jump","跳;跃","动作一"],
+  ["swim","游泳","动作一"],
+  ["dance","跳舞","动作一"],
+  ["sing","唱(歌);演唱","动作一"],
+  ["draw","画","动作一"],
+  ["play","玩耍","动作一"],
+  ["skate","滑冰;溜冰","动作一"],
+  ["fly","操纵(飞行器等);飞","动作一"],
+  ["stand","站立;立","动作一"],
+  ["sit","坐","动作一"],
+  ["shout","大声说;叫","动作一"],
+  ["smoke","吸(烟)","动作一"],
+  ["fall","落下","动作一"],
+  // —— 动作二 ——
+  ["open","开放;打开","动作二"],
+  ["close","关;关闭;闭上","动作二"],
+  ["give","给","动作二"],
+  ["take","买下","动作二"],
+  ["bring","带……到某处;带来;取来","动作二"],
+  ["pass","给;递","动作二"],
+  ["carry","运送;承载","动作二"],
+  ["keep","保有;留着","动作二"],
+  ["find","找到;找回","动作二"],
+  ["touch","触摸;碰","动作二"],
+  ["make","使出现;做","动作二"],
+  ["move","搬家;移动","动作二"],
+  ["see","看见","动作二"],
+  ["hear","听见;听到","动作二"],
+  ["smell","闻(气味)","动作二"],
+  ["watch","看","动作二"],
+  ["help","帮助","动作二"],
+  ["share","分享","动作二"],
+  ["tell","讲述;告诉","动作二"],
+  ["work","做(某事);工作","动作二"],
+  // —— 交流思考 ——
+  ["talk","说话;讲话;谈话","交流思考"],
+  ["think","想;思考","交流思考"],
+  ["agree","同意;赞成","交流思考"],
+  ["suggest","建议;提议","交流思考"],
+  ["worry","担心;担忧;发愁","交流思考"],
+  ["feel","觉得;感到","交流思考"],
+  ["feel like","感觉像是","交流思考"],
+  ["idea","想法;主意","交流思考"],
+  ["matter","事情;问题","交流思考"],
+  ["maybe","(不确定)大概,或许,可能","交流思考"],
+  ["plan","计划;打算","交流思考"],
+  ["project","项目;方案","交流思考"],
+  // —— 星期 ——
+  ["Monday","星期一","星期"],
+  ["Tuesday","星期二","星期"],
+  ["Wednesday","星期三","星期"],
+  ["Thursday","星期四","星期"],
+  ["Friday","星期五","星期"],
+  ["Saturday","星期六","星期"],
+  ["Sunday","星期日","星期"],
+  ["week","周;星期","星期"],
+  ["weekend","周末","星期"],
+  ["today","今天","星期"],
+  // —— 时间 ——
+  ["afternoon","下午","时间"],
+  ["evening","晚上;傍晚","时间"],
+  ["night","夜;夜晚","时间"],
+  ["time","时间","时间"],
+  ["hour","小时","时间"],
+  ["minute","分钟","时间"],
+  ["o'clock","(表示整点)……点钟","时间"],
+  ["tomorrow","在明天","时间"],
+  ["now","现在","时间"],
+  ["then","然后;那时;那么;因此","时间"],
+  ["early","早到的;提前的","时间"],
+  ["late","迟到;迟发生","时间"],
+  ["always","总是","时间"],
+  ["usually","通常地;经常地","时间"],
+  ["sometimes","有时;间或","时间"],
+  // —— 频度语气 ——
+  ["finally","(用于列举)最后;终于","频度语气"],
+  ["still","还是;仍然","频度语气"],
+  ["just","只是;仅仅;正要","频度语气"],
+  ["even","(强调出乎意料)甚至,连,即使","频度语气"],
+  ["everyday","每天的;日常的","频度语气"],
+  // —— 天气 ——
+  ["weather","天气","天气"],
+  ["sunny","阳光充足的","天气"],
+  ["cloudy","多云的","天气"],
+  ["rainy","阴雨的","天气"],
+  ["windy","多风的","天气"],
+  ["snowy","多雪的","天气"],
+  ["hot","热的","天气"],
+  ["cold","冷的","天气"],
+  ["warm","温暖的","天气"],
+  ["cool","酷的;绝妙的;凉爽的","天气"],
+  ["wet","湿的;未干的","天气"],
+  ["fine","晴朗的","天气"],
+  ["wind","风;气流","天气"],
+  ["fog","雾","天气"],
+  ["flood","洪水;水灾","天气"],
+  // —— 自然一 ——
+  ["tree","树","自然一"],
+  ["flower","花;花朵","自然一"],
+  ["grass","草;草地","自然一"],
+  ["root","根;根茎","自然一"],
+  ["stem","(花草的)茎;(花或叶的)梗,柄","自然一"],
+  ["plant","种植;植物","自然一"],
+  ["lotus","莲属植物","自然一"],
+  ["garden","花园","自然一"],
+  ["farm","农场","自然一"],
+  ["grassland","草原;草地","自然一"],
+  // —— 自然二 ——
+  ["sea","海;海洋","自然二"],
+  ["river","河;江","自然二"],
+  ["lake","湖;湖泊","自然二"],
+  ["hill","山丘;小山","自然二"],
+  ["forest","森林;林区","自然二"],
+  ["island","岛;岛屿","自然二"],
+  ["desert","沙漠;荒漠","自然二"],
+  ["stone","石头;岩石","自然二"],
+  ["waterfall","瀑布","自然二"],
+  ["nature","自然界;大自然","自然二"],
+  // —— 自然三 ——
+  ["environment","自然环境","自然三"],
+  ["air","空气","自然三"],
+  ["water","给……浇水;水","自然三"],
+  ["fire","火;火灾","自然三"],
+  ["ice","冰;冰块;冰场","自然三"],
+  ["high","高的","自然三"],
+  ["round","圆形的;环形的;球形的","自然三"],
+  ["litter","垃圾;废弃物","自然三"],
+  ["snowman","雪人","自然三"],
+  // —— 交通 ——
+  ["car","小汽车;轿车","交通"],
+  ["bike","自行车;脚踏车","交通"],
+  ["taxi","出租汽车;计程车","交通"],
+  ["train","火车;列车","交通"],
+  ["plane","飞机","交通"],
+  ["ship","(大)船;舰","交通"],
+  ["boat","小船;舟","交通"],
+  ["underground","地铁","交通"],
+  ["traffic","交通","交通"],
+  ["on foot","步行","交通"],
+  ["travel","旅行;长途行走;从一处到另一处","交通"],
+  ["trip","(尤指短程往返的)旅行,旅游,出行","交通"],
+  ["tour","旅行;旅游","交通"],
+  ["visit","看望;拜访;参观","交通"],
+  ["visitor","游客;参观者","交通"],
+  // —— 方位 ——
+  ["in","在……内;在……中","方位"],
+  ["on","(覆盖、附着)在……上","方位"],
+  ["at","在(某处)","方位"],
+  ["under","在(或到、通过)……下面","方位"],
+  ["behind","在……的后面","方位"],
+  ["beside","在旁边;在附近","方位"],
+  ["between","在……中间;介于……之间","方位"],
+  ["middle","中间;中央","方位"],
+  ["next","紧邻;紧接着","方位"],
+  ["left","向左;左边","方位"],
+  ["over","在……的远端(或对面);结束(的)","方位"],
+  ["along","沿着;顺着","方位"],
+  ["from","(表示来源)来自,从……来","方位"],
+  ["inside","在……里","方位"],
+  ["back","回到原处","方位"],
+  // —— 问路出行 ——
+  ["way","方法;手段;途径;方式","问路出行"],
+  ["sign","指示牌;标志","问路出行"],
+  ["direct","给(某人)指路;指挥","问路出行"],
+  ["far","远的;较远的","问路出行"],
+  ["lost","迷路的;迷失的","问路出行"],
+  ["go hiking","徒步旅行","问路出行"],
+  ["station","局;所;站","问路出行"],
+  ["bus stop","公共汽车站","问路出行"],
+  ["street","大街;街道","问路出行"],
+  ["place","地方;场所","问路出行"],
+  // —— 国家地名 ——
+  ["China","中国","国家地名"],
+  ["Chinese","中文;中国人;中国的","国家地名"],
+  ["UK","英国","国家地名"],
+  ["USA","美国","国家地名"],
+  ["Canada","加拿大","国家地名"],
+  ["Australia","澳大利亚","国家地名"],
+  ["Britain","不列颠(包括英格兰、苏格兰及威尔士)","国家地名"],
+  ["India","印度","国家地名"],
+  ["Italy","意大利","国家地名"],
+  ["Hawaii","夏威夷","国家地名"],
+  ["Sydney","悉尼","国家地名"],
+  ["Cairo","开罗(埃及首都)","国家地名"],
+  ["foreign","外国的","国家地名"],
+  ["country","国;国家","国家地名"],
+  ["world","世界;地球;天下","国家地名"],
+  // —— 文化节日 ——
+  ["culture","文化;文明","文化节日"],
+  ["history","历史","文化节日"],
+  ["Beijing opera","京剧","文化节日"],
+  ["Mount Taishan","泰山","文化节日"],
+  ["Confucius","孔子","文化节日"],
+  ["holiday","假期","文化节日"],
+  ["party","联欢会;聚会","文化节日"],
+  ["celebrate","庆祝;庆贺","文化节日"],
+  ["Christmas","圣诞节","文化节日"],
+  ["join","参与;加入","文化节日"],
+  ["Dragon Boat Festival","端午节","文化节日"],
+  ["National Day","国庆节","文化节日"],
+  ["Labour Day","劳动节","文化节日"],
+  ["CPC Founding Day","中国共产党建党日","文化节日"],
+  ["PLA Day","中国人民解放军建军节","文化节日"],
+  // —— 职业 ——
+  ["doctor","医生","职业"],
+  ["nurse","护士","职业"],
+  ["farmer","农场主;农民","职业"],
+  ["driver","司机","职业"],
+  ["cleaner","清洁工","职业"],
+  ["firefighter","消防队员","职业"],
+  ["police officer","警察;警员","职业"],
+  ["office worker","公司职员","职业"],
+  ["factory worker","工厂工人","职业"],
+  ["delivery worker","快递员","职业"],
+  ["artist","艺术家;画家","职业"],
+  ["player","运动员;参赛选手","职业"],
+  ["guard","门卫;看守","职业"],
+  ["volunteer","志愿者","职业"],
+  ["job","工作;职业","职业"],
+  // —— 运动游戏 ——
+  ["sport","体育运动","运动游戏"],
+  ["game","游戏","运动游戏"],
+  ["football","足球运动","运动游戏"],
+  ["basketball","篮球运动","运动游戏"],
+  ["ping-pong","乒乓球","运动游戏"],
+  ["chess","国际象棋","运动游戏"],
+  ["exercise","锻炼;训练;操练","运动游戏"],
+  ["strong","强壮的","运动游戏"],
+  ["fast","快的","运动游戏"],
+  ["slow","缓慢的;慢的","运动游戏"],
+  // —— 艺术娱乐 ——
+  ["music","音乐","艺术娱乐"],
+  ["song","歌;歌曲","艺术娱乐"],
+  ["piano","钢琴","艺术娱乐"],
+  ["art","美术;艺术","艺术娱乐"],
+  ["painting","油画;绘画","艺术娱乐"],
+  ["story","故事","艺术娱乐"],
+  ["film","电影","艺术娱乐"],
+  ["show","(电视或广播)节目","艺术娱乐"],
+  ["fun","享乐;乐趣","艺术娱乐"],
+  ["interesting","有趣的;有吸引力的","艺术娱乐"],
+  // —— 形容词一 ——
+  ["tall","高的","形容词一"],
+  ["short","短的;个子矮的","形容词一"],
+  ["thin","瘦的","形容词一"],
+  ["fat","肥的;肥胖的","形容词一"],
+  ["big","大的","形容词一"],
+  ["small","小的","形容词一"],
+  ["old","(多少)岁;年纪;旧的;年纪大的","形容词一"],
+  ["new","新","形容词一"],
+  ["long","(长度或距离)长的","形容词一"],
+  ["busy","忙碌的","形容词一"],
+  // —— 形容词二 ——
+  ["good","好的","形容词二"],
+  ["bad","令人不快的;坏的","形容词二"],
+  ["nice","令人愉快的;友好的","形容词二"],
+  ["kind","友好的","形容词二"],
+  ["lovely","美丽的;优美的","形容词二"],
+  ["beautiful","美丽的","形容词二"],
+  ["cute","可爱的","形容词二"],
+  ["famous","著名的;出名的","形容词二"],
+  ["special","特别的;特殊的","形容词二"],
+  ["common","共同的;共有的","形容词二"],
+  // —— 形容词三 ——
+  ["dangerous","有危险的;不安全的","形容词三"],
+  ["safe","安全的","形容词三"],
+  ["helpful","有帮助的;有用的","形容词三"],
+  ["heavy","程度大的;严重的","形容词三"],
+  ["loud","说话太大声的;吵闹的","形容词三"],
+  ["closed","关闭的","形容词三"],
+  ["local","当地的;本地的","形容词三"],
+  ["different","不同的;有区别的;有差异的","形容词三"],
+  ["best","最好的","形容词三"],
+  ["favourite","最喜欢的","形容词三"],
+  // —— 情绪状态 ——
+  ["sad","悲哀的;难过的","情绪状态"],
+  ["worried","担心的;担忧的","情绪状态"],
+  ["afraid","担心;害怕","情绪状态"],
+  ["scare","惊吓;使害怕","情绪状态"],
+  ["tired","疲倦的","情绪状态"],
+  ["sorry","对不起","情绪状态"],
+  ["right","(意见或判断)准确,确切,恰当","情绪状态"],
+  ["wrong","错误的","情绪状态"],
+  ["ready","准备好","情绪状态"],
+  ["hurt","对……有不良影响;(使)疼痛,受伤","情绪状态"],
+  // —— 健康 ——
+  ["health","健康","健康"],
+  ["healthy","健康的","健康"],
+  ["habit","习惯","健康"],
+  ["flu","流行性感冒;流感","健康"],
+  ["hospital","医院","健康"],
+  // —— 地点场所 ——
+  ["cinema","电影院","地点场所"],
+  ["park","公园","地点场所"],
+  ["community","社区","地点场所"],
+  ["centre","中心","地点场所"],
+  ["palace","王宫;宫殿","地点场所"],
+  ["hotel","旅馆;旅社","地点场所"],
+  ["building","建筑物;房子","地点场所"],
+  ["pyramid","(古埃及的)金字塔","地点场所"],
+  ["look after","照顾","地点场所"],
+  ["take care of","爱护;照顾","地点场所"],
+  // —— 常用小词 ——
+  ["about","关于;大约","常用小词"],
+  ["after","在……后面","常用小词"],
+  ["because","因为","常用小词"],
+  ["before","在……之前","常用小词"],
+  ["dear","亲爱的","常用小词"],
+  ["hard","努力地;费力地","常用小词"],
+  ["herself","(反身代词)她自己,自己","常用小词"],
+  ["tip","实用的提示;指点","常用小词"],
+  ["together","在一起;共同","常用小词"],
+  ["hand out","分发","常用小词"],
+  // —— 情态与小词 ——
+  ["all","所有;全部","情态与小词"],
+  ["also","也","情态与小词"],
+  ["any","任何的;任一的","情态与小词"],
+  ["can","可以;(盛食品或饮料的)金属罐","情态与小词"],
+  ["could","(表示可能性)可以,可能","情态与小词"],
+  ["else","其他的;别的","情态与小词"],
+  ["must","必须","情态与小词"],
+  ["should","(提出或征询建议)该,可以","情态与小词"],
+  ["so","(表示大小或数量)这么,那么","情态与小词"],
+  ["very","很;非常;十分","情态与小词"],
+  // —— 高频动词 ——
+  ["check","查看;查明","高频动词"],
+  ["explore","探索","高频动词"],
+  ["finish","完成;做好","高频动词"],
+  ["go","去;走","高频动词"],
+  ["has","(have 的第三人称单数形式)具有(某种外表、特性或特征)","高频动词"],
+  ["have","有","高频动词"],
+  ["like","喜欢","高频动词"],
+  ["live","住;居住","高频动词"],
+  ["love","喜爱;爱","高频动词"],
+  ["need","需要","高频动词"],
+  ["start","开始","高频动词"],
+  ["stay","待;保持;继续是","高频动词"],
+  ["teach","教(课程);讲授","高频动词"],
+  ["want","想要","高频动词"],
+  ["hurry up","快点;赶快","高频动词"]
+];
+
+let state = {
+  words: [],          // {id, en, zh}
+  groups: [],         // {id, wordIds:[..5], learnedAt:'YYYY-MM-DD', stage:0, nextDue:'YYYY-MM-DD', graduated:false}
+  nextId: 1
+};
+let storageOK = true;
+
+// 双通道存储:Claude 环境用 window.storage;下载到本地/挂到网站时自动改用浏览器 localStorage
+const store = {
+  async get(k){
+    try{ const r = await window.storage.get(k); if(r && r.value!=null) return r.value; }catch(e){}
+    try{ const v = localStorage.getItem(k); if(v!=null) return v; }catch(e){}
+    return null;
+  },
+  async set(k,v){
+    let ok=false;
+    try{ const r = await window.storage.set(k,v); if(r) ok=true; }catch(e){}
+    try{ localStorage.setItem(k,v); ok=true; }catch(e){}
+    return ok;
+  }
+};
+
+function todayStr(offset=0){ const d=new Date(); d.setDate(d.getDate()+offset); return d.toISOString().slice(0,10); }
+function daysBetween(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
+
+async function loadState(){
+  try{
+    const v = await store.get(STORE_KEY);
+    if(v){
+      state = JSON.parse(v);
+      // 迁移:把词库新增的默认词补进已有存档(按单词去重,保留原进度)
+      const have = new Set(state.words.map(w=>w.en.toLowerCase()));
+      let added = 0;
+      for(const [en,zh,u] of DEFAULT_WORDS){
+        if(!have.has(en.toLowerCase())){
+          state.words.push({id:state.nextId++, en, zh, u:u||''});
+          have.add(en.toLowerCase()); added++;
+        }
+      }
+      if(added) await saveState();
+      return;
+    }
+  }catch(e){ /* 无存档或不可用 */ }
+  // 首次:载入默认词库
+  state.words = DEFAULT_WORDS.map(([en,zh,u])=>({id:state.nextId++, en, zh, u:u||''}));
+  saveState();
+}
+async function saveState(){
+  storageOK = await store.set(STORE_KEY, JSON.stringify(state));
+}
+
+function unlearnedWords(){
+  const used = new Set(state.groups.flatMap(g=>g.wordIds));
+  return state.words.filter(w=>!used.has(w.id));
+}
+function dueGroups(){
+  const t = todayStr();
+  return state.groups.filter(g=>!g.graduated && g.nextDue <= t);
+}
+
+/* ===== 暑假计划(2026-07-20 → 2026-08-31)===== */
+const PLAN_START='2026-07-20', PLAN_END='2026-08-31';
+function planPerDay(ds){
+  const dow = new Date(ds+'T12:00:00').getDay(); // 0=周日
+  if(ds<=('2026-07-26')) return 1;                        // 第1周 适应期
+  if(ds<=('2026-08-23')) return dow===0 ? 0 : 2;          // 第2–5周 主力期,周日只复习
+  return 1;                                               // 最后1周 收尾期
+}
+function planPhase(ds){
+  if(ds<=('2026-07-26')) return '适应期 · 每天1组';
+  if(ds<=('2026-08-23')) return '主力期 · 每天2组,周日只复习';
+  return '收尾期 · 每天1组,重心转复习';
+}
+function planInfo(){
+  const t = todayStr();
+  if(t < PLAN_START) return null;
+  let cumTarget=0, total=0;
+  const d = new Date(PLAN_START+'T12:00:00');
+  while(true){
+    const ds = d.toISOString().slice(0,10);
+    if(ds > PLAN_END) break;
+    total += planPerDay(ds);
+    if(ds <= t) cumTarget += planPerDay(ds);
+    d.setDate(d.getDate()+1);
+  }
+  const actual = state.groups.filter(g=>g.learnedAt >= PLAN_START).length;
+  return {
+    over: t > PLAN_END,
+    dayIdx: daysBetween(PLAN_START, t>PLAN_END?PLAN_END:t)+1,
+    todayN: t<=PLAN_END ? planPerDay(t) : 0,
+    phase: planPhase(t<=PLAN_END?t:PLAN_END),
+    cumTarget, total, actual, diff: actual-cumTarget
+  };
+}
+function wordById(id){ return state.words.find(w=>w.id===id); }
+
+/* ================= 自然拼读 ================= */
+// 把单词切成拼读块:v=元音发音块(黄) c=辅音组合(绿) b=辅音连缀 s=不发音 p=普通
+const PH_PATS = [
+  ['eigh','v'],['augh','v'],['ough','v'],
+  ['igh','v'],['tch','c'],['dge','c'],['ear','v'],['air','v'],['oor','v'],['are','v'],['ure','v'],['alk','v'],['all','v'],['ore','v'],
+  ['ch','c'],['sh','c'],['th','c'],['ph','c'],['wh','c'],['ck','c'],['ng','c'],['qu','c'],
+  ['ai','v'],['ay','v'],['ea','v'],['ee','v'],['ei','v'],['ey','v'],['oa','v'],['ow','v'],['ou','v'],['oo','v'],['ue','v'],['ui','v'],['ie','v'],['oy','v'],['oi','v'],['aw','v'],['au','v'],['ew','v'],
+  ['ar','v'],['er','v'],['ir','v'],['or','v'],['ur','v'],
+  ['bl','b'],['br','b'],['cl','b'],['cr','b'],['dr','b'],['fl','b'],['fr','b'],['gl','b'],['gr','b'],['pl','b'],['pr','b'],['sc','b'],['sk','b'],['sl','b'],['sm','b'],['sn','b'],['sp','b'],['st','b'],['sw','b'],['tr','b'],['tw','b']
+];
+function phChunks(word){
+  const res=[], lower=word.toLowerCase();
+  let i=0;
+  while(i<lower.length){
+    const ch=lower[i];
+    if(!/[a-z]/.test(ch)){ res.push({t:word[i],c:'p'}); i++; continue; }
+    let hit=null;
+    for(const [p,c] of PH_PATS){ if(lower.startsWith(p,i)){ hit=[p,c]; break; } }
+    if(hit){ res.push({t:word.slice(i,i+hit[0].length), c:hit[1]}); i+=hit[0].length; }
+    else { res.push({t:word[i], c:('aeiou'.includes(ch)||(ch==='y'&&i>0))?'v':'p'}); i++; }
+  }
+  // 词尾不发音的 e(magic e):辅音+e 结尾且前面已有元音块
+  if(res.length>=3){
+    const last=res[res.length-1], prev=res[res.length-2];
+    if(last.t.toLowerCase()==='e' && last.c==='v' && prev.c!=='v'
+       && res.slice(0,-2).some(x=>x.c==='v')) last.c='s';
+  }
+  return res;
+}
+function phHTML(word){
+  return word.split(' ').map(part=>
+    '<span class="ph-word">'+phChunks(part).map(k=>`<span class="ph-${k.c}">${k.t}</span>`).join('')+'</span>'
+  ).join('&nbsp;');
+}
+
+/* ================= 语音 ================= */
+function speak(text, rate=0.85){
+  try{
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang='en-US'; u.rate=rate;
+    const v = speechSynthesis.getVoices().find(v=>v.lang.startsWith('en'));
+    if(v) u.voice=v;
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+let recogAvailable = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+/* ================= 视图路由 ================= */
+const app = document.getElementById('app');
+let timerHandle = null;
+function clearTimer(){ if(timerHandle){ clearInterval(timerHandle); timerHandle=null; } speechSynthesis.cancel(); }
+
+function header(backTo){
+  return `<header class="top">
+    <div class="brand">单词训练营<small>五词四轮 · 艾宾浩斯</small></div>
+    ${backTo?`<button class="navbtn" onclick="clearTimer();${backTo}()">← 返回首页</button>`:''}
+  </header>`;
+}
+
+/* ---------- 首页 ---------- */
+function renderHome(){
+  clearTimer();
+  const due = dueGroups();
+  const pool = unlearnedWords();
+  const learnedCount = state.groups.flatMap(g=>g.wordIds).length;
+  const gradCount = state.groups.filter(g=>g.graduated).length;
+
+  let dueHtml = due.length ? due.map(g=>{
+    const ws = g.wordIds.map(wordById).filter(Boolean);
+    const overdue = daysBetween(g.nextDue, todayStr());
+    return `<div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)">
+      <div>
+        <div style="font-size:14px">${ws.map(w=>w.en).join(' · ')}</div>
+        <div class="muted">第 ${g.stage+1} 次复习${overdue>0?` · 已逾期 ${overdue} 天`:''}</div>
+      </div>
+      <button class="btn btn-main btn-sm" onclick="startReview(${g.id})">复习</button>
+    </div>`;
+  }).join('') : `<div class="muted">今天没有到期的复习任务 ✓</div>`;
+
+  // 今日建议:复习优先,新词按复习负担收放(与暑假计划联动)
+  const P0 = planInfo();
+  const D = due.length;
+  let sug, sugWhy;
+  if(P0 && !P0.over && P0.todayN===0){ sug='今天不学新词'; sugWhy='暑假计划的周日缓冲日:只清复习,给记忆留出巩固时间,也防倦怠。'; }
+  else if(D>=4){ sug='今天不学新词'; sugWhy=`到期复习有 ${D} 组,先把复习清完最重要——复习堆积是背单词半途而废的头号原因。`; }
+  else if(D>=2){ sug='新学 1 组'; sugWhy=`先完成 ${D} 组复习,再学 1 组新词,总量刚好在专注力范围内。`; }
+  else if(D===1){ sug='新学 1 组(状态好可加到 2 组)'; sugWhy='复习负担轻,完成 1 组复习后学新词;如果复习全对、孩子状态好,可以再加 1 组。'; }
+  else { sug = pool.length? '新学 1–2 组':'词库已学完,坐等复习到期'; sugWhy = pool.length? '今天没有复习任务,可以放心学新词;第 2 组视孩子状态决定,不勉强。':'保持每天打开检查复习队列即可。'; }
+  const estMin = D*6 + (D>=4?0:15);
+  const sugCard = `<div class="card" style="border-color:var(--amber)">
+    <h3>今日建议</h3>
+    <div style="font-size:18px;font-weight:700;margin-bottom:6px">${D?`先复习 ${D} 组 → `:''}${sug}</div>
+    <p class="muted">${sugWhy}</p>
+    <p class="muted" style="margin-top:6px">预计用时约 ${estMin} 分钟。判断标准:复习正确率稳定 ≥90% 可加量,&lt;80% 就停新词只做复习。</p>
+  </div>`;
+
+  // 暑假计划进度卡
+  const P = planInfo();
+  let planCard = '';
+  if(P){
+    const pct = Math.min(100, Math.round(P.actual/P.total*100));
+    const tpct = Math.min(100, Math.round(P.cumTarget/P.total*100));
+    let diffTag;
+    if(P.diff>0) diffTag = `<span class="tag okc">超前 ${P.diff} 组 👍</span>`;
+    else if(P.diff===0) diffTag = `<span class="tag okc">正好在计划上 ✓</span>`;
+    else if(P.diff>=-2) diffTag = `<span class="tag due">落后 ${-P.diff} 组,今明补上即可</span>`;
+    else diffTag = `<span class="tag due">落后 ${-P.diff} 组,建议连续几天加学,别一次硬补</span>`;
+    const todayLine = P.over ? '暑假计划已结束,回到「平时1组、周末2组」的学期节奏'
+      : (P.todayN===0 ? '今日计划:<b style="color:var(--chalk)">只复习,不学新词</b>(周日缓冲日)'
+                      : `今日计划:新学 <b style="color:var(--chalk)">${P.todayN}</b> 组 + 清完到期复习`);
+    planCard = `<div class="card">
+      <h3>暑假计划 · 第 ${P.dayIdx} 天 / 44 天</h3>
+      <p class="muted" style="margin-bottom:6px">${P.phase}</p>
+      <p style="margin-bottom:10px">${todayLine}</p>
+      <div style="background:var(--board-2);border-radius:8px;height:14px;position:relative;overflow:hidden;margin-bottom:6px">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:${pct}%;background:var(--amber);border-radius:8px"></div>
+        <div style="position:absolute;left:${tpct}%;top:-2px;bottom:-2px;width:2px;background:var(--chalk)" title="计划进度线"></div>
+      </div>
+      <div class="row" style="justify-content:space-between">
+        <span class="muted">实际 <b style="color:var(--amber)">${P.actual}</b> / 应完成 ${P.cumTarget} / 全程 ${P.total} 组</span>
+        ${diffTag}
+      </div>
+      <p class="muted" style="margin-top:8px">白色竖线是"今天应该到的位置"。原则:进度可以欠,复习不能欠——时间不够先砍新词。</p>
+    </div>`;
+  }
+
+  app.innerHTML = header() + sugCard + planCard + `
+    <div class="card">
+      <h3>今日复习 ${due.length?`<span class="tag due">${due.length} 组到期</span>`:''}</h3>
+      ${dueHtml}
+    </div>
+    <div class="card">
+      <h3>学习新单词</h3>
+      <p class="muted" style="margin-bottom:12px">词库剩余未学:<b style="color:var(--chalk)">${pool.length}</b> 个 · 已学 ${learnedCount} 个 · 已牢记 ${gradCount} 组</p>
+      <div class="row">
+        <button class="btn btn-main" ${pool.length===0?'disabled':''} onclick="startNewGroup()">开始新一组(${Math.min(5,pool.length)}词)</button>
+        <button class="btn btn-ghost" onclick="renderBank()">词库管理</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>复习计划</h3>
+      <p class="muted">按艾宾浩斯遗忘曲线,每组学完后在第 <b style="color:var(--amber)">1 / 2 / 4 / 7 / 15</b> 天各复习一次;复习正确率不足 80% 时该阶段重来。5 次全部通过即标记为「已牢记」。</p>
+    </div>
+    ${storageOK?'':'<p class="footer-tip">⚠ 存储不可用,本次进度仅保留在当前页面内</p>'}
+    <p class="footer-tip">建议戴耳机或打开声音 · 单词由浏览器语音朗读</p>`;
+}
+
+/* ---------- 词库管理 ---------- */
+function renderBank(){
+  clearTimer();
+  const used = new Set(state.groups.flatMap(g=>g.wordIds));
+  const rows = state.words.map(w=>`<tr>
+    <td class="en">${w.en}</td><td>${w.zh}</td>
+    <td>${w.u?`<span class="tag">${w.u}</span>`:''}</td>
+    <td>${used.has(w.id)?'<span class="tag okc">已学</span>':'<span class="tag">待学</span>'}</td>
+    <td>${used.has(w.id)?'':`<button class="del" onclick="delWord(${w.id})">✕</button>`}</td>
+  </tr>`).join('');
+  app.innerHTML = header('renderHome') + `
+    <div class="card">
+      <h3>批量添加单词</h3>
+      <p class="muted" style="margin-bottom:8px">每行一个,格式:<b>英文 中文</b>(空格或逗号分隔),例如:<br>apple 苹果<br>give up 放弃</p>
+      <textarea id="bulk" placeholder="apple 苹果&#10;banana 香蕉"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn btn-main btn-sm" onclick="bulkAdd()">添加到词库</button>
+        <span class="muted" id="bulkMsg"></span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>进度备份</h3>
+      <p class="muted" style="margin-bottom:10px">进度会在每个动作后自动保存在当前设备/浏览器里。换设备或换浏览器时,用下面按钮把进度带走:</p>
+      <div class="row">
+        <button class="btn btn-ghost btn-sm" onclick="exportBackup()">⬇ 导出备份文件</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('impFile').click()">⬆ 导入备份文件</button>
+        <input type="file" id="impFile" accept=".json" style="display:none" onchange="importBackup(this)">
+        <span class="muted" id="bakMsg"></span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>词库(${state.words.length})</h3>
+      <table><tr><th>单词</th><th>释义</th><th>单元</th><th>状态</th><th></th></tr>${rows}</table>
+    </div>`;
+}
+function exportBackup(){
+  const blob = new Blob([JSON.stringify(state)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `单词训练营备份-${todayStr()}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+  document.getElementById('bakMsg').textContent = '已导出 ✓';
+}
+function importBackup(input){
+  const f = input.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onload = async () => {
+    try{
+      const s = JSON.parse(rd.result);
+      if(!s.words || !Array.isArray(s.words)) throw 0;
+      state = s;
+      await saveState();
+      document.getElementById('bakMsg').textContent = '导入成功,进度已恢复 ✓';
+      setTimeout(renderBank, 800);
+    }catch(e){ document.getElementById('bakMsg').textContent = '文件格式不对,导入失败'; }
+  };
+  rd.readAsText(f);
+}
+function bulkAdd(){
+  const lines = document.getElementById('bulk').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  let n=0;
+  for(const line of lines){
+    const m = line.match(/^([A-Za-z][A-Za-z .'-]*?)[\s,，、\t]+(.+)$/);
+    if(m){
+      const en=m[1].trim(), zh=m[2].trim();
+      if(!state.words.some(w=>w.en.toLowerCase()===en.toLowerCase())){
+        state.words.push({id:state.nextId++, en, zh}); n++;
+      }
+    }
+  }
+  saveState();
+  document.getElementById('bulkMsg').textContent = n?`已添加 ${n} 个`: '未识别到有效行';
+  if(n) setTimeout(renderBank, 600);
+}
+function delWord(id){
+  state.words = state.words.filter(w=>w.id!==id);
+  saveState(); renderBank();
+}
+
+/* ================= 训练会话 ================= */
+let S = null; // session
+
+function startNewGroup(){
+  const all = unlearnedWords();
+  if(!all.length) return;
+  // 同主题(标签)优先凑满5个,不足再按顺序补位
+  const tag = all[0].u;
+  let pool = all.filter(w=>w.u===tag).slice(0,5);
+  if(pool.length<5){
+    const ids = new Set(pool.map(w=>w.id));
+    for(const w of all){ if(pool.length>=5) break; if(!ids.has(w.id)) pool.push(w); }
+  }
+  S = { mode:'new', words:pool, round:1, idx:0, queue:[...pool],
+        results:{}, marks:{} };
+  pool.forEach(w=>S.results[w.id]={r1:null,r2:null,r3:null,r4:null});
+  renderRound();
+}
+
+function startReview(gid){
+  const g = state.groups.find(x=>x.id===gid);
+  const ws = g.wordIds.map(wordById).filter(Boolean);
+  S = { mode:'review', gid, words:ws, round:3, idx:0, queue:[...ws], results:{}, marks:{} };
+  ws.forEach(w=>S.results[w.id]={r3:null});
+  renderRound();
+}
+
+const ROUND_INFO = {
+  1:{name:'第一轮 · 朗读跟读', time:15, tip:'按色块自然拼读:黄色是元音发音块,绿色是辅音组合,灰色不发音'},
+  2:{name:'第二轮 · 听音拼写', time:25, tip:'英文已隐藏,听发音拼出单词'},
+  3:{name:'第三轮 · 中译英拼写', time:30, tip:'只看中文,拼出英文'},
+};
+
+function dots(){
+  return `<div class="progress-dots">${S.queue.map((w,i)=>{
+    let c='dot'; if(i<S.idx) c+=' done-ok'; else if(i===S.idx) c+=' on';
+    return `<div class="${c}"></div>`;
+  }).join('')}</div>`;
+}
+
+function renderRound(){
+  clearTimer();
+  if(S.round===4){ renderPaper(); return; }
+  if(S.idx >= S.queue.length){ nextRoundOrRetry(); return; }
+  const w = S.queue[S.idx];
+  const info = ROUND_INFO[S.round];
+  const R = 108, C = 2*Math.PI*R;
+  const roundTag = S.mode==='review' ? '复习模式' : `新学 · 共 ${S.words.length} 词`;
+
+  let inner='', controls='';
+  if(S.round===1){
+    inner = `<div class="word-en">${phHTML(w.en)}</div><div class="word-zh">${w.zh}</div><div class="timeleft" id="tl"></div>`;
+    controls = `
+      <div class="ph-legend"><i class="lv">元音发音块</i><i class="lc">辅音组合</i><i class="ls">不发音</i></div>
+      <div class="row" style="justify-content:center;margin-bottom:10px">
+        <button class="btn btn-ghost btn-sm" onclick="speak('${w.en.replace(/'/g,"\\'")}')">🔊 正常语速</button>
+        <button class="btn btn-ghost btn-sm" onclick="speak('${w.en.replace(/'/g,"\\'")}',0.45)">🐢 慢速拼读</button>
+        ${recogAvailable?`<button class="btn btn-ghost btn-sm" id="micBtn" onclick="micScore()">🎤 跟读评分</button>`:''}
+      </div>
+      <div class="feedback" id="fb"></div>
+      <p class="muted">按色块拼读:先慢速跟着拼,再正常语速连读,然后自评:</p>
+      <div class="rate-row">
+        <button class="btn btn-ghost btn-sm" onclick="rateR1(100)">😀 流利标准</button>
+        <button class="btn btn-ghost btn-sm" onclick="rateR1(70)">🙂 基本会读</button>
+        <button class="btn btn-ghost btn-sm" onclick="rateR1(40)">😣 还不熟</button>
+      </div>`;
+  } else {
+    const showZh = true;
+    inner = `<div class="hidden-word">${'•'.repeat(Math.min(w.en.replace(/\s/g,'').length,10))}</div>
+             ${showZh?`<div class="word-zh">${w.zh}</div>`:''}
+             <div class="timeleft" id="tl"></div>`;
+    controls = `
+      ${S.round===2?`<div class="row" style="justify-content:center;margin-bottom:10px">
+        <button class="btn btn-ghost btn-sm" onclick="speak('${w.en.replace(/'/g,"\\'")}')">🔊 再听一遍</button></div>`:''}
+      <input class="spell" id="spell" autocomplete="off" autocapitalize="off" spellcheck="false"
+             placeholder="输入英文,回车提交" onkeydown="if(event.key==='Enter')checkSpell()">
+      <div class="feedback" id="fb"></div>
+      <button class="btn btn-main btn-sm" onclick="checkSpell()">提交</button>`;
+  }
+
+  app.innerHTML = header('renderHome') + `
+    <div class="stage">
+      <div class="round-tag">${roundTag}</div>
+      <div class="round-name">${info.name}</div>
+      ${dots()}
+      <div class="ring-wrap">
+        <svg width="100%" height="100%" viewBox="0 0 230 230">
+          <circle class="ring-bg" cx="115" cy="115" r="${R}"></circle>
+          <circle class="ring-fg" id="ring" cx="115" cy="115" r="${R}"
+                  stroke-dasharray="${C}" stroke-dashoffset="0"></circle>
+        </svg>
+        <div class="ring-inner">${inner}</div>
+      </div>
+      ${controls}
+      <p class="footer-tip">${info.tip}</p>
+    </div>`;
+
+  // 朗读
+  if(S.round===1 || S.round===2) setTimeout(()=>speak(w.en), 300);
+  if(S.round>=2) setTimeout(()=>{const i=document.getElementById('spell'); if(i) i.focus();}, 100);
+
+  // 计时
+  let left = info.time*10; const total=left;
+  const ring=document.getElementById('ring'), tl=document.getElementById('tl');
+  timerHandle = setInterval(()=>{
+    left--;
+    if(tl) tl.textContent = (left/10).toFixed(1)+' s';
+    if(ring){
+      ring.style.strokeDashoffset = C*(1-left/total);
+      if(left<total*0.25) ring.style.stroke='var(--bad)';
+    }
+    if(left<=0){ clearTimer(); onTimeout(w); }
+  },100);
+}
+
+function onTimeout(w){
+  if(S.round===1){ S.results[w.id].r1 = 40; advance(); }
+  else {
+    const fb=document.getElementById('fb');
+    if(fb) fb.innerHTML = `<span class="bad">⏱ 超时!正确拼写:</span> <span class="correct-reveal">${phHTML(w.en)}</span>`;
+    recordSpell(w, false);
+    setTimeout(advance, 1800);
+  }
+}
+
+function rateR1(score){
+  const w=S.queue[S.idx];
+  S.results[w.id].r1=score; clearTimer(); advance();
+}
+
+function micScore(){
+  const w=S.queue[S.idx];
+  const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
+  const fb=document.getElementById('fb');
+  try{
+    const r=new SR(); r.lang='en-US'; r.maxAlternatives=3;
+    fb.innerHTML='<span class="muted">🎤 请跟读…</span>';
+    r.onresult=e=>{
+      const alts=[...e.results[0]].map(a=>a.transcript.toLowerCase().trim());
+      const hit=alts.some(t=>t.includes(w.en.toLowerCase()));
+      const score = hit?100:55;
+      fb.innerHTML = hit?`<span class="ok">✓ 发音识别正确!100 分</span>`
+                        :`<span class="bad">识别到:"${alts[0]}",再试或自评</span>`;
+      if(hit){ S.results[w.id].r1=100; clearTimer(); setTimeout(advance,900); }
+    };
+    r.onerror=()=>{ fb.innerHTML='<span class="muted">麦克风不可用,请用下方按钮自评</span>'; recogAvailable=false; };
+    r.start();
+  }catch(e){
+    fb.innerHTML='<span class="muted">麦克风不可用,请用下方按钮自评</span>';
+    recogAvailable=false;
+  }
+}
+
+function normSpell(s){ return s.toLowerCase().replace(/[^a-z]/g,''); }
+function checkSpell(){
+  const w=S.queue[S.idx];
+  const input=document.getElementById('spell');
+  const fb=document.getElementById('fb');
+  if(!input) return;
+  const val=input.value.trim();
+  if(!val) return;
+  const ok = normSpell(val) === normSpell(w.en);
+  clearTimer();
+  input.classList.add(ok?'ok':'bad');
+  input.disabled=true;
+  fb.innerHTML = ok? `<span class="ok">✓ 正确!</span>`
+    : `<span class="bad">✕ 错误。正确拼写:</span> <span class="correct-reveal">${phHTML(w.en)}</span>`;
+  if(!ok) speak(w.en);
+  recordSpell(w, ok);
+  setTimeout(advance, ok?800:2000);
+}
+
+function recordSpell(w, ok){
+  const key = S.round===2?'r2':'r3';
+  const cur = S.results[w.id][key];
+  // 首次成绩记录;重做只在原来错误时更新为"订正过"(60分)
+  if(cur===null) S.results[w.id][key] = ok?100:0;
+  else if(cur===0 && ok) S.results[w.id][key] = 60;
+  w._lastOk = ok;
+}
+
+function advance(){
+  S.idx++;
+  renderRound();
+}
+
+function nextRoundOrRetry(){
+  // 本轮做完:错词重做一遍(只重做一次)
+  const wrongs = S.queue.filter(w=>w._lastOk===false && !w._retried);
+  if(S.round>=2 && wrongs.length){
+    wrongs.forEach(w=>{w._retried=true; w._lastOk=undefined;});
+    S.queue=[...wrongs]; S.idx=0;
+    app.innerHTML = header('renderHome') + `<div class="stage" style="justify-content:center">
+      <div class="round-name">错词订正 · ${wrongs.length} 个</div>
+      <p class="muted" style="margin-bottom:20px">刚才拼错的单词再来一遍</p>
+      <button class="btn btn-main" onclick="renderRound()">开始订正</button></div>`;
+    return;
+  }
+  // 进入下一轮
+  S.words.forEach(w=>{w._retried=false; w._lastOk=undefined;});
+  if(S.mode==='review'){ finishReview(); return; }
+  if(S.round<3){
+    S.round++; S.idx=0; S.queue=[...S.words];
+    const info=ROUND_INFO[S.round];
+    app.innerHTML = header('renderHome') + `<div class="stage" style="justify-content:center">
+      <div class="round-name">${info.name}</div>
+      <p class="muted" style="margin-bottom:20px">${info.tip}</p>
+      <button class="btn btn-main" onclick="renderRound()">开始</button></div>`;
+  } else {
+    S.round=4; renderPaper();
+  }
+}
+
+/* ---------- 第四轮:纸面默写 + 批改 ---------- */
+function renderPaper(){
+  clearTimer();
+  app.innerHTML = header('renderHome') + `
+    <div class="stage" style="align-items:stretch;text-align:left">
+      <div style="text-align:center">
+        <div class="round-tag">新学 · 最后一关</div>
+        <div class="round-name">第四轮 · 纸上中译英</div>
+      </div>
+      <div class="card">
+        <p class="muted" style="margin-bottom:6px">拿出纸笔,按下面的中文把英文<b style="color:var(--chalk)">写在纸上</b>(不要看屏幕提示):</p>
+        <div class="paper-list">
+          ${S.words.map((w,i)=>`<div class="paper-item"><span class="num">${i+1}.</span><span class="zh">${w.zh}</span></div>`).join('')}
+        </div>
+        <div style="text-align:center">
+          <button class="btn btn-main" onclick="renderMark()">写好了,开始批改 ✍️</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderMark(){
+  app.innerHTML = header('renderHome') + `
+    <div class="stage" style="align-items:stretch;text-align:left">
+      <div style="text-align:center">
+        <div class="round-name">批改 · 对照答案打分</div>
+        <p class="muted">对照你纸上写的,每个单词标记 ✓ 或 ✕</p>
+      </div>
+      <div class="card">
+        <div class="paper-list">
+          ${S.words.map((w,i)=>`<div class="paper-item">
+            <span class="num">${i+1}.</span>
+            <span class="zh">${w.zh}</span>
+            <span class="en">${w.en}</span>
+            <span class="markbtns">
+              <button class="mk" id="mk-ok-${w.id}" onclick="markPaper(${w.id},true)">✓</button>
+              <button class="mk" id="mk-bad-${w.id}" onclick="markPaper(${w.id},false)">✕</button>
+            </span>
+          </div>`).join('')}
+        </div>
+        <div style="text-align:center">
+          <button class="btn btn-main" id="finishBtn" disabled onclick="finishNew()">完成本组</button>
+        </div>
+      </div>
+    </div>`;
+}
+function markPaper(id, ok){
+  S.marks[id]=ok;
+  S.results[id].r4 = ok?100:0;
+  document.getElementById('mk-ok-'+id).className = 'mk'+(ok?' sel-ok':'');
+  document.getElementById('mk-bad-'+id).className = 'mk'+(!ok?' sel-bad':'');
+  document.getElementById('finishBtn').disabled = Object.keys(S.marks).length < S.words.length;
+}
+
+/* ---------- 完成 ---------- */
+function groupScore(){
+  let sum=0,n=0;
+  S.words.forEach(w=>{
+    const r=S.results[w.id];
+    ['r1','r2','r3','r4'].forEach(k=>{ if(r[k]!=null){sum+=r[k];n++;} });
+  });
+  return n?Math.round(sum/n):0;
+}
+
+function finishNew(){
+  const gid = state.nextId++;
+  state.groups.push({
+    id:gid, wordIds:S.words.map(w=>w.id),
+    learnedAt:todayStr(), stage:0, nextDue:todayStr(1), graduated:false
+  });
+  saveState();
+  const score=groupScore();
+  const rows = S.words.map(w=>{
+    const r=S.results[w.id];
+    const avg=Math.round((['r1','r2','r3','r4'].reduce((s,k)=>s+(r[k]??0),0))/4);
+    return `<div class="summary-word"><span class="en">${w.en}</span><span class="muted">${w.zh}</span><b style="color:${avg>=80?'var(--ok)':avg>=60?'var(--amber)':'var(--bad)'}">${avg}</b></div>`;
+  }).join('');
+  app.innerHTML = header() + `
+    <div class="stage" style="justify-content:center">
+      <div class="round-name">本组完成 🎉</div>
+      <div class="score-big">${score}</div>
+      <p class="muted" style="margin-bottom:16px">综合得分 · 明天(${todayStr(1)})进行第 1 次复习</p>
+      <div class="card" style="width:100%;text-align:left">${rows}</div>
+      <button class="btn btn-main" onclick="renderHome()">返回首页</button>
+    </div>`;
+}
+
+function finishReview(){
+  const g = state.groups.find(x=>x.id===S.gid);
+  let ok=0;
+  S.words.forEach(w=>{ if((S.results[w.id].r3??0)>=60) ok++; });
+  const rate = Math.round(ok/S.words.length*100);
+  const passed = rate>=80;
+  let msg;
+  if(passed){
+    g.stage++;
+    if(g.stage>=INTERVALS.length){ g.graduated=true; msg='🎓 五次复习全部通过,本组已牢记!'; }
+    else { g.nextDue = todayStr(INTERVALS[g.stage]); msg=`✓ 通过!下次复习:${g.nextDue}(第 ${INTERVALS[g.stage]} 天)`; }
+  } else {
+    g.nextDue = todayStr(1);
+    msg = `正确率不足 80%,明天(${g.nextDue})重新复习本阶段`;
+  }
+  saveState();
+  app.innerHTML = header() + `
+    <div class="stage" style="justify-content:center">
+      <div class="round-name">复习完成</div>
+      <div class="score-big">${rate}%</div>
+      <p class="muted" style="margin:10px 0 20px">${msg}</p>
+      <button class="btn btn-main" onclick="renderHome()">返回首页</button>
+    </div>`;
+}
+
+/* ================= 启动 ================= */
+(async ()=>{
+  await loadState();
+  try{ speechSynthesis.getVoices(); }catch(e){}
+  renderHome();
+})();
+</script>
+</body>
+</html>
