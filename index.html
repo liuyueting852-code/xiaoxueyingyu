@@ -60,7 +60,18 @@
   .ring-bg{fill:none;stroke:rgba(242,239,228,.12);stroke-width:6}
   .ring-fg{fill:none;stroke:var(--amber);stroke-width:6;stroke-linecap:round;transition:stroke .3s}
   .ring-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
-  .word-en{font-family:ui-monospace,"SF Mono",Consolas,monospace;font-size:34px;font-weight:700;letter-spacing:1px;word-break:break-all}
+  .word-en{font-family:ui-monospace,"SF Mono",Consolas,monospace;font-size:34px;font-weight:700;letter-spacing:1px;line-height:1.25;max-width:100%}
+  .ph-word{white-space:nowrap}
+  .ph-word>span{padding:0 1px}
+  .ph-v{color:var(--amber);border-bottom:3px solid var(--amber)}
+  .ph-c{color:var(--ok);border-bottom:3px solid var(--ok)}
+  .ph-s{color:var(--chalk-dim);opacity:.5}
+  .ph-hi{background:rgba(232,196,104,.32);box-shadow:0 0 14px rgba(232,196,104,.4);border-radius:5px;transition:background .12s}
+  .ph-legend{display:flex;gap:14px;justify-content:center;font-size:12px;color:var(--chalk-dim);margin-bottom:10px}
+  .ph-legend i{font-style:normal;padding:0 4px;border-bottom:3px solid}
+  .ph-legend .lv{color:var(--amber);border-color:var(--amber)}
+  .ph-legend .lc{color:var(--ok);border-color:var(--ok)}
+  .ph-legend .ls{color:var(--chalk-dim);opacity:.6;border-color:transparent}
   .word-zh{font-size:18px;color:var(--chalk-dim);margin-top:6px}
   .timeleft{font-size:12px;color:var(--chalk-dim);margin-top:8px;font-variant-numeric:tabular-nums}
   .hidden-word{font-size:34px;letter-spacing:6px;color:var(--chalk-dim)}
@@ -925,14 +936,29 @@ let state = {
 };
 let storageOK = true;
 
+// 双通道存储:Claude 环境用 window.storage;下载到本地/挂到网站时自动改用浏览器 localStorage
+const store = {
+  async get(k){
+    try{ const r = await window.storage.get(k); if(r && r.value!=null) return r.value; }catch(e){}
+    try{ const v = localStorage.getItem(k); if(v!=null) return v; }catch(e){}
+    return null;
+  },
+  async set(k,v){
+    let ok=false;
+    try{ const r = await window.storage.set(k,v); if(r) ok=true; }catch(e){}
+    try{ localStorage.setItem(k,v); ok=true; }catch(e){}
+    return ok;
+  }
+};
+
 function todayStr(offset=0){ const d=new Date(); d.setDate(d.getDate()+offset); return d.toISOString().slice(0,10); }
 function daysBetween(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
 
 async function loadState(){
   try{
-    const r = await window.storage.get(STORE_KEY);
-    if(r && r.value){
-      state = JSON.parse(r.value);
+    const v = await store.get(STORE_KEY);
+    if(v){
+      state = JSON.parse(v);
       // 迁移:把词库新增的默认词补进已有存档(按单词去重,保留原进度)
       const have = new Set(state.words.map(w=>w.en.toLowerCase()));
       let added = 0;
@@ -951,8 +977,7 @@ async function loadState(){
   saveState();
 }
 async function saveState(){
-  try{ await window.storage.set(STORE_KEY, JSON.stringify(state)); }
-  catch(e){ storageOK=false; }
+  storageOK = await store.set(STORE_KEY, JSON.stringify(state));
 }
 
 function unlearnedWords(){
@@ -1000,6 +1025,51 @@ function planInfo(){
 }
 function wordById(id){ return state.words.find(w=>w.id===id); }
 
+/* ================= 自然拼读 ================= */
+// 把单词切成拼读块:v=元音发音块(黄) c=辅音组合(绿) b=辅音连缀 s=不发音 p=普通
+const PH_PATS = [
+  ['eigh','v'],['augh','v'],['ough','v'],
+  ['igh','v'],['tch','c'],['dge','c'],['ear','v'],['air','v'],['oor','v'],['are','v'],['ure','v'],['alk','v'],['all','v'],['ore','v'],
+  ['ch','c'],['sh','c'],['th','c'],['ph','c'],['wh','c'],['ck','c'],['ng','c'],['qu','c'],
+  ['ai','v'],['ay','v'],['ea','v'],['ee','v'],['ei','v'],['ey','v'],['oa','v'],['ow','v'],['ou','v'],['oo','v'],['ue','v'],['ui','v'],['ie','v'],['oy','v'],['oi','v'],['aw','v'],['au','v'],['ew','v'],
+  ['ar','v'],['er','v'],['ir','v'],['or','v'],['ur','v'],
+  ['bl','b'],['br','b'],['cl','b'],['cr','b'],['dr','b'],['fl','b'],['fr','b'],['gl','b'],['gr','b'],['pl','b'],['pr','b'],['sc','b'],['sk','b'],['sl','b'],['sm','b'],['sn','b'],['sp','b'],['st','b'],['sw','b'],['tr','b'],['tw','b']
+];
+function phChunks(word){
+  const res=[], lower=word.toLowerCase();
+  let i=0;
+  while(i<lower.length){
+    const ch=lower[i];
+    if(!/[a-z]/.test(ch)){ res.push({t:word[i],c:'p'}); i++; continue; }
+    let hit=null;
+    for(const [p,c] of PH_PATS){ if(lower.startsWith(p,i)){ hit=[p,c]; break; } }
+    if(hit){ res.push({t:word.slice(i,i+hit[0].length), c:hit[1]}); i+=hit[0].length; }
+    else { res.push({t:word[i], c:('aeiou'.includes(ch)||(ch==='y'&&i>0))?'v':'p'}); i++; }
+  }
+  // 词尾不发音的 e(magic e):辅音+e 结尾且前面已有元音块
+  if(res.length>=3){
+    const last=res[res.length-1], prev=res[res.length-2];
+    if(last.t.toLowerCase()==='e' && last.c==='v' && prev.c!=='v'
+       && res.slice(0,-2).some(x=>x.c==='v')) last.c='s';
+  }
+  return res;
+}
+function phHTML(word){
+  return word.split(' ').map(part=>
+    '<span class="ph-word">'+phChunks(part).map(k=>`<span class="ph-${k.c}">${k.t}</span>`).join('')+'</span>'
+  ).join(' ');
+}
+// 根据词长自适应字号,保证在圆圈内显示完整
+function enFontSize(en){
+  const parts = en.split(' ');
+  const longest = Math.max(...parts.map(p=>p.length));
+  let size;
+  if(longest<=6) size=34; else if(longest<=8) size=30; else if(longest<=10) size=26;
+  else if(longest<=12) size=22; else size=18;
+  if(parts.length>=2) size = Math.min(size, en.length>=16 ? 20 : 24);
+  return size;
+}
+
 /* ================= 语音 ================= */
 function speak(text, rate=0.85){
   try{
@@ -1011,12 +1081,65 @@ function speak(text, rate=0.85){
     speechSynthesis.speak(u);
   }catch(e){}
 }
+// 朗读序列:按 rates 依次朗读,遍与遍之间停 gap 毫秒;切词/退出时自动中断
+let speakToken = 0;
+function speakRepeat(text, rates, gap=600, onEach=null){
+  try{
+    speechSynthesis.cancel();
+    const token = ++speakToken;
+    let i = 0;
+    const next = ()=>{
+      if(token !== speakToken || i >= rates.length) return;
+      const r = rates[i]; i++;
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang='en-US'; u.rate = r;
+      const v = speechSynthesis.getVoices().find(v=>v.lang.startsWith('en'));
+      if(v) u.voice = v;
+      u.onstart = ()=>{ if(token===speakToken && onEach) onEach(r); };
+      u.onend = ()=>setTimeout(next, gap);
+      speechSynthesis.speak(u);
+    };
+    next();
+  }catch(e){}
+}
+
+// 跟读高亮:按语速估算时长,拼读块依次点亮
+let hiTimers = [];
+function clearHi(){
+  hiTimers.forEach(clearTimeout); hiTimers=[];
+  document.querySelectorAll('.ph-hi').forEach(e=>e.classList.remove('ph-hi'));
+}
+function animateChunks(rate){
+  clearHi();
+  const spans = [...document.querySelectorAll('#wordEn .ph-word > span')];
+  if(!spans.length) return;
+  const weights = spans.map(sp=> sp.classList.contains('ph-s') ? 0.35 : Math.max(sp.textContent.trim().length, 0.5));
+  const totalW = weights.reduce((a,b)=>a+b, 0);
+  const cps = 11 * rate;                                   // 估算每秒读的字符数
+  const totalMs = Math.min(6000, Math.max(500, totalW/cps*1000));
+  let t = 0;
+  spans.forEach((sp,i)=>{
+    const dur = totalMs * weights[i] / totalW;
+    hiTimers.push(setTimeout(()=>{
+      document.querySelectorAll('.ph-hi').forEach(e=>e.classList.remove('ph-hi'));
+      sp.classList.add('ph-hi');
+    }, t));
+    t += dur;
+  });
+  hiTimers.push(setTimeout(clearHi, t + 150));
+}
+// 手动重听(带高亮)
+function readAloud(rate){
+  const w = S && S.queue[S.idx];
+  if(!w) return;
+  speakRepeat(w.en, [rate], 0, r=>animateChunks(r));
+}
 let recogAvailable = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 
 /* ================= 视图路由 ================= */
 const app = document.getElementById('app');
 let timerHandle = null;
-function clearTimer(){ if(timerHandle){ clearInterval(timerHandle); timerHandle=null; } speechSynthesis.cancel(); }
+function clearTimer(){ if(timerHandle){ clearInterval(timerHandle); timerHandle=null; } speakToken++; speechSynthesis.cancel(); if(typeof clearHi==='function') clearHi(); }
 
 function header(backTo){
   return `<header class="top">
@@ -1045,16 +1168,20 @@ function renderHome(){
     </div>`;
   }).join('') : `<div class="muted">今天没有到期的复习任务 ✓</div>`;
 
-  // 今日建议:复习优先,新词按复习负担收放(与暑假计划联动)
+  // 今日建议:永远给一个确定的数字(复习优先,与暑假计划联动)
   const P0 = planInfo();
   const D = due.length;
+  let newN; // 今天建议新学的组数(确定值)
+  if(D>=4) newN = 0;                                    // 复习堆积,停新词
+  else if(P0 && !P0.over) newN = Math.min(P0.todayN, D>=3?1:P0.todayN);  // 暑假按计划表
+  else { const dow=new Date().getDay(); newN = (dow===0||dow===6)?2:1; if(D>=3) newN=1; } // 学期:平时1周末2
+  if(!pool.length) newN = 0;
   let sug, sugWhy;
-  if(P0 && !P0.over && P0.todayN===0){ sug='今天不学新词'; sugWhy='暑假计划的周日缓冲日:只清复习,给记忆留出巩固时间,也防倦怠。'; }
+  if(P0 && !P0.over && P0.todayN===0 && D<4){ sug='今天不学新词'; sugWhy='暑假计划的周日缓冲日:只清复习,给记忆留出巩固时间,也防倦怠。'; }
   else if(D>=4){ sug='今天不学新词'; sugWhy=`到期复习有 ${D} 组,先把复习清完最重要——复习堆积是背单词半途而废的头号原因。`; }
-  else if(D>=2){ sug='新学 1 组'; sugWhy=`先完成 ${D} 组复习,再学 1 组新词,总量刚好在专注力范围内。`; }
-  else if(D===1){ sug='新学 1 组(状态好可加到 2 组)'; sugWhy='复习负担轻,完成 1 组复习后学新词;如果复习全对、孩子状态好,可以再加 1 组。'; }
-  else { sug = pool.length? '新学 1–2 组':'词库已学完,坐等复习到期'; sugWhy = pool.length? '今天没有复习任务,可以放心学新词;第 2 组视孩子状态决定,不勉强。':'保持每天打开检查复习队列即可。'; }
-  const estMin = D*6 + (D>=4?0:15);
+  else if(newN===0){ sug = pool.length?'今天不学新词':'词库已学完,坐等复习到期'; sugWhy = pool.length?'按计划今天只做复习。':'保持每天打开检查复习队列即可。'; }
+  else { sug=`新学 ${newN} 组`; sugWhy = D?`先完成 ${D} 组复习,再学 ${newN} 组新词,总量在专注力范围内。`:`今天没有复习任务,专心学 ${newN} 组新词。`; }
+  const estMin = D*6 + newN*15;
   const sugCard = `<div class="card" style="border-color:var(--amber)">
     <h3>今日建议</h3>
     <div style="font-size:18px;font-weight:700;margin-bottom:6px">${D?`先复习 ${D} 组 → `:''}${sug}</div>
@@ -1134,9 +1261,42 @@ function renderBank(){
       </div>
     </div>
     <div class="card">
+      <h3>进度备份</h3>
+      <p class="muted" style="margin-bottom:10px">进度会在每个动作后自动保存在当前设备/浏览器里。换设备或换浏览器时,用下面按钮把进度带走:</p>
+      <div class="row">
+        <button class="btn btn-ghost btn-sm" onclick="exportBackup()">⬇ 导出备份文件</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('impFile').click()">⬆ 导入备份文件</button>
+        <input type="file" id="impFile" accept=".json" style="display:none" onchange="importBackup(this)">
+        <span class="muted" id="bakMsg"></span>
+      </div>
+    </div>
+    <div class="card">
       <h3>词库(${state.words.length})</h3>
       <table><tr><th>单词</th><th>释义</th><th>单元</th><th>状态</th><th></th></tr>${rows}</table>
     </div>`;
+}
+function exportBackup(){
+  const blob = new Blob([JSON.stringify(state)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `单词训练营备份-${todayStr()}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+  document.getElementById('bakMsg').textContent = '已导出 ✓';
+}
+function importBackup(input){
+  const f = input.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onload = async () => {
+    try{
+      const s = JSON.parse(rd.result);
+      if(!s.words || !Array.isArray(s.words)) throw 0;
+      state = s;
+      await saveState();
+      document.getElementById('bakMsg').textContent = '导入成功,进度已恢复 ✓';
+      setTimeout(renderBank, 800);
+    }catch(e){ document.getElementById('bakMsg').textContent = '文件格式不对,导入失败'; }
+  };
+  rd.readAsText(f);
 }
 function bulkAdd(){
   const lines = document.getElementById('bulk').value.split('\n').map(s=>s.trim()).filter(Boolean);
@@ -1187,8 +1347,8 @@ function startReview(gid){
 }
 
 const ROUND_INFO = {
-  1:{name:'第一轮 · 朗读跟读', time:12, tip:'听发音,大声跟读,然后自评或用麦克风评分'},
-  2:{name:'第二轮 · 听音拼写', time:25, tip:'英文已隐藏,听发音拼出单词'},
+  1:{name:'第一轮 · 朗读跟读', time:30, tip:'自动播放:慢读3遍 → 快读3遍 → 慢1遍 → 快1遍,跟着色块拼读;黄=元音块 绿=辅音组合 灰=不发音'},
+  2:{name:'第二轮 · 听音拼写', time:45, tip:'英文已隐藏,会自动慢读3遍,边听边拼出单词'},
   3:{name:'第三轮 · 中译英拼写', time:30, tip:'只看中文,拼出英文'},
 };
 
@@ -1210,14 +1370,16 @@ function renderRound(){
 
   let inner='', controls='';
   if(S.round===1){
-    inner = `<div class="word-en">${w.en}</div><div class="word-zh">${w.zh}</div><div class="timeleft" id="tl"></div>`;
+    inner = `<div class="word-en" id="wordEn" style="font-size:${enFontSize(w.en)}px">${phHTML(w.en)}</div><div class="word-zh">${w.zh}</div><div class="timeleft" id="tl"></div>`;
     controls = `
+      <div class="ph-legend"><i class="lv">元音发音块</i><i class="lc">辅音组合</i><i class="ls">不发音</i></div>
       <div class="row" style="justify-content:center;margin-bottom:10px">
-        <button class="btn btn-ghost btn-sm" onclick="speak('${w.en.replace(/'/g,"\\'")}')">🔊 再听一遍</button>
+        <button class="btn btn-ghost btn-sm" onclick="readAloud(0.9)">🔊 正常语速</button>
+        <button class="btn btn-ghost btn-sm" onclick="readAloud(0.45)">🐢 慢速拼读</button>
         ${recogAvailable?`<button class="btn btn-ghost btn-sm" id="micBtn" onclick="micScore()">🎤 跟读评分</button>`:''}
       </div>
       <div class="feedback" id="fb"></div>
-      <p class="muted">大声跟读后自评:</p>
+      <p class="muted">按色块拼读:先慢速跟着拼,再正常语速连读,然后自评:</p>
       <div class="rate-row">
         <button class="btn btn-ghost btn-sm" onclick="rateR1(100)">😀 流利标准</button>
         <button class="btn btn-ghost btn-sm" onclick="rateR1(70)">🙂 基本会读</button>
@@ -1225,7 +1387,9 @@ function renderRound(){
       </div>`;
   } else {
     const showZh = true;
-    inner = `<div class="hidden-word">${'•'.repeat(Math.min(w.en.replace(/\s/g,'').length,10))}</div>
+    const dotN = Math.min(w.en.replace(/\s/g,'').length,10);
+    const dotSize = dotN<=6?34 : dotN<=8?28 : 22;
+    inner = `<div class="hidden-word" style="font-size:${dotSize}px">${'•'.repeat(dotN)}</div>
              ${showZh?`<div class="word-zh">${w.zh}</div>`:''}
              <div class="timeleft" id="tl"></div>`;
     controls = `
@@ -1254,8 +1418,9 @@ function renderRound(){
       <p class="footer-tip">${info.tip}</p>
     </div>`;
 
-  // 朗读
-  if(S.round===1 || S.round===2) setTimeout(()=>speak(w.en), 300);
+  // 朗读:第一轮 慢3遍→正常3遍→慢1遍→正常1遍;第二轮 慢读3遍(遍间留2秒拼写)
+  if(S.round===1) setTimeout(()=>speakRepeat(w.en, [0.45,0.45,0.45, 0.9,0.9,0.9, 0.45, 0.9], 700, r=>animateChunks(r)), 300);
+  if(S.round===2) setTimeout(()=>speakRepeat(w.en, [0.45,0.45,0.45], 2000), 300);
   if(S.round>=2) setTimeout(()=>{const i=document.getElementById('spell'); if(i) i.focus();}, 100);
 
   // 计时
@@ -1275,10 +1440,8 @@ function renderRound(){
 function onTimeout(w){
   if(S.round===1){ S.results[w.id].r1 = 40; advance(); }
   else {
-    const fb=document.getElementById('fb');
-    if(fb) fb.innerHTML = `<span class="bad">⏱ 超时!正确拼写:</span> <span class="correct-reveal">${w.en}</span>`;
     recordSpell(w, false);
-    setTimeout(advance, 1800);
+    enterCorrection(w, '⏱ 超时!正确拼写:');
   }
 }
 
@@ -1311,6 +1474,14 @@ function micScore(){
 }
 
 function normSpell(s){ return s.toLowerCase().replace(/[^a-z]/g,''); }
+function enterCorrection(w, msg){
+  S.correcting = true;
+  const input=document.getElementById('spell'), fb=document.getElementById('fb');
+  if(input){ input.value=''; input.disabled=false; input.classList.remove('ok','bad'); input.focus(); }
+  if(fb) fb.innerHTML = `<span class="bad">${msg}</span> <span class="correct-reveal">${phHTML(w.en)}</span><br><span class="muted">照着正确拼写打一遍,拼对才能继续 ↓</span>`;
+  speak(w.en, 0.6);
+}
+
 function checkSpell(){
   const w=S.queue[S.idx];
   const input=document.getElementById('spell');
@@ -1318,15 +1489,32 @@ function checkSpell(){
   if(!input) return;
   const val=input.value.trim();
   if(!val) return;
+
+  // 订正模式:必须拼对才放行
+  if(S.correcting){
+    if(normSpell(val) === normSpell(w.en)){
+      S.correcting=false;
+      input.classList.add('ok'); input.disabled=true;
+      fb.innerHTML = `<span class="ok">✓ 订正完成!</span>`;
+      setTimeout(advance, 700);
+    } else {
+      input.value=''; input.focus();
+      fb.innerHTML = `<span class="bad">还不对,对照上面再拼一遍:</span> <span class="correct-reveal">${phHTML(w.en)}</span><br><span class="muted">照着正确拼写打一遍,拼对才能继续 ↓</span>`;
+      speak(w.en, 0.6);
+    }
+    return;
+  }
+
   const ok = normSpell(val) === normSpell(w.en);
   clearTimer();
-  input.classList.add(ok?'ok':'bad');
-  input.disabled=true;
-  fb.innerHTML = ok? `<span class="ok">✓ 正确!</span>`
-    : `<span class="bad">✕ 错误。正确拼写:</span> <span class="correct-reveal">${w.en}</span>`;
-  if(!ok) speak(w.en);
   recordSpell(w, ok);
-  setTimeout(advance, ok?800:2000);
+  if(ok){
+    input.classList.add('ok'); input.disabled=true;
+    fb.innerHTML = `<span class="ok">✓ 正确!</span>`;
+    setTimeout(advance, 800);
+  } else {
+    enterCorrection(w, '✕ 错误。正确拼写:');
+  }
 }
 
 function recordSpell(w, ok){
@@ -1339,6 +1527,7 @@ function recordSpell(w, ok){
 }
 
 function advance(){
+  S.correcting = false;
   S.idx++;
   renderRound();
 }
